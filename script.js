@@ -2,24 +2,27 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- CONFIGURAÇÃO DAS ROTAS ---
     // A chave é a SENHA. O valor são os dados da viagem.
-    const ROTAS = {
-        "185648": {
-            id: "rota_pr",
-            destinoNome: "Londrina - PR",
-            destinoDesc: "R. João Marques da Silva, 527",
-            // Montes Claros (MG) -> Londrina (PR)
-            start: [-43.8750, -16.7350], 
-            end:   [-51.1855, -23.2485]
-        },
-        "567896": {
-            id: "rota_ba",
-            destinoNome: "Camamu - BA",
-            destinoDesc: "Praça Dr. Pirajá da Silva (Centro)",
-            // Montes Claros (MG) -> Camamu (BA)
-            start: [-43.8750, -16.7350],
-            end:   [-39.1039, -13.9450]
+    // --- CONFIGURAÇÃO: PROJETO BAHIA ---
+const TEMPO_TOTAL_VIAGEM_HORAS = 48; 
+
+const ROTAS = {
+    "567896": { // Senha de acesso
+        id: "rota_ba",
+        destinoNome: "Camamu - BA",
+        destinoDesc: "Praça Dr. Pirajá da Silva (Centro)",
+        
+        // Começa do zero, sem vantagem
+        offsetHoras: 0, 
+        
+        start: [-43.8750, -16.7350], // Montes Claros
+        end:   [-39.1039, -13.9450], // Camamu
+
+        // Sem regras de parada (Viagem direta)
+        verificarRegras: function() { 
+            return false; 
         }
-    };
+    }
+};
 
     const TEMPO_TOTAL_VIAGEM_HORAS = 48; 
 
@@ -224,4 +227,5 @@ document.addEventListener('DOMContentLoaded', () => {
             color: '#2e7d32', weight: 5, opacity: 0.8, dashArray: '10, 10' 
         }).addTo(map);
     }
+
 });
