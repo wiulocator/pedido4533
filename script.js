@@ -3,23 +3,64 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CONFIGURAÇÃO DAS ROTAS ---
     // A chave é a SENHA. O valor são os dados da viagem.
     // --- CONFIGURAÇÃO: PROJETO BAHIA ---
+// --- CONFIGURAÇÃO: PROJETO BAHIA ---
+// --- CONFIGURAÇÃO: PROJETO BAHIA ---
 const TEMPO_TOTAL_VIAGEM_HORAS = 48; 
 
 const ROTAS = {
-    "567896": { // Senha de acesso
+    "567896": { 
         id: "rota_ba",
         destinoNome: "Camamu - BA",
         destinoDesc: "Praça Dr. Pirajá da Silva (Centro)",
-        
-        // Começa do zero, sem vantagem
         offsetHoras: 0, 
-        
-        start: [-43.8750, -16.7350], // Montes Claros
-        end:   [-39.1039, -13.9450], // Camamu
+        start: [-43.8750, -16.7350], 
+        end:   [-39.1039, -13.9450], 
 
-        // Sem regras de parada (Viagem direta)
-        verificarRegras: function() { 
-            return false; 
+        // REGRA: Parar na PRF de Gandu e mostrar a plaquinha ao lado
+        verificarRegras: function(posicaoAtual, map, loopInterval, timeBadge, carMarker) {
+            
+            // Coordenadas do Posto PRF Gandu/BA
+            const CHECKPOINT_PRF = [-13.7445, -39.4815]; 
+            const distancia = map.distance(posicaoAtual, CHECKPOINT_PRF);
+
+            // Se chegar perto (5km)
+            if (distancia < 5000) {
+                // 1. Para o caminhão
+                clearInterval(loopInterval); 
+                carMarker.setLatLng(CHECKPOINT_PRF);
+                map.panTo(CHECKPOINT_PRF);
+
+                // 2. Muda apenas o TEXTO do status (mantém o avatar original)
+                if(timeBadge) {
+                    timeBadge.innerText = "PARADO NA FISCALIZAÇÃO";
+                    timeBadge.style.backgroundColor = "#b71c1c";
+                    timeBadge.style.color = "white";
+                }
+
+                // 3. CRIA A PLAQUINHA NO MAPA (Igual à sua foto)
+                // HTML estilizado para parecer a etiqueta do Waze/Maps
+                const htmlPlaquinha = `
+                    <div style="display: flex; align-items: center; gap: 8px; font-family: sans-serif;">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg/1024px-Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg.png" style="width: 35px; height: auto;">
+                        <div style="text-align: left; line-height: 1.2;">
+                            <strong style="font-size: 13px; color: #000; display: block;">PRF Gandu</strong>
+                            <span style="font-size: 11px; color: #333; font-weight: bold;">BR-101</span><br>
+                            <span style="font-size: 10px; color: #666;">KM 349</span>
+                        </div>
+                    </div>
+                `;
+
+                // Adiciona o Tooltip ao lado direito do caminhão
+                carMarker.bindTooltip(htmlPlaquinha, {
+                    permanent: true,   // Fica fixo, não precisa clicar
+                    direction: 'right', // Aparece "do lado" direito
+                    className: 'prf-label', // Classe para tirar bordas extras se precisar
+                    opacity: 1
+                }).openTooltip();
+
+                return true; 
+            }
+            return false;
         }
     }
 };
@@ -227,4 +268,5 @@ const ROTAS = {
     }
 
 });
+
 
