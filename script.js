@@ -1,28 +1,29 @@
-document.addEventListener('DOMContentLoaded', () => {
+
+   document.addEventListener('DOMContentLoaded', () => {
     
     // --- CONFIGURAÇÃO GLOBAL ---
-    // Tempo estimado para ~280km (Promissão -> Leme)
-    const TEMPO_TOTAL_VIAGEM_HORAS = 6; 
+    // Distância aprox. 1.600km (MG -> PB)
+    // Tempo estimado: 36 Horas
+    const TEMPO_TOTAL_VIAGEM_HORAS = 36; 
 
     // --- BANCO DE DADOS DE ROTAS ---
     const ROTAS = {
-        "78944": {  // <--- SUA NOVA SENHA
-            id: "rota_leme",
+        "58036": {  // <--- SENHA (INICIO DO CEP)
+            id: "rota_jp_pb",
             
-            // INFORMAÇÕES VISUAIS
-            destinoNome: "Leme - SP", 
-            destinoDesc: "R. Pedro Piratelli, 340 - Jd. Sta Marta",
+            // VISUAL
+            destinoNome: "João Pessoa - PB", 
+            destinoDesc: "CEP: 58036-435 (Jardim Oceania)",
             
             // COORDENADAS [Longitude, Latitude]
-            // IMPORTANTE: OSRM usa Longitude primeiro!
             
-            // Origem: Promissão - SP
-            start: [-49.8578, -21.5369], 
+            // Origem: Montes Claros - MG
+            start: [-43.8750, -16.7350], 
             
-            // Destino: Leme - SP (Aprox. Jd Santa Marta)
-            end:   [-47.3900, -22.1860], 
+            // Destino: João Pessoa - PB (CEP 58036-435)
+            end:   [-34.8430, -7.0910], 
             
-            // Começa a viagem do zero
+            // Começa do zero
             offsetHoras: 0 
         }
     };
@@ -45,14 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function verificarCodigo() {
         const input = document.getElementById('access-code');
-        const codigoDigitado = input.value.toUpperCase(); 
+        const codigoDigitado = input.value.trim(); 
         const errorMsg = document.getElementById('error-msg');
 
         if (ROTAS[codigoDigitado]) {
             localStorage.setItem('codigoAtivo', codigoDigitado);
             
             const keyStorage = 'inicioViagem_' + codigoDigitado;
-            
             if (!localStorage.getItem(keyStorage)) {
                 localStorage.setItem(keyStorage, Date.now());
             }
@@ -78,6 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const overlay = document.getElementById('login-overlay');
         const infoCard = document.getElementById('info-card');
         const btn = document.getElementById('btn-login');
+        
+        // Tenta atualizar a descrição do CEP se o elemento existir no HTML
+        const descElement = document.getElementById('destino-desc');
+        if(descElement) descElement.innerText = rotaAtual.destinoDesc;
 
         if(btn) {
             btn.innerText = "Localizando veículo...";
@@ -91,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iniciarMapa();
         }).catch(err => {
             console.error(err);
-            alert("Erro de conexão com satélite de rota.");
+            alert("Erro ao traçar rota. Tente novamente.");
             if(btn) {
                 btn.innerText = "Tentar Novamente";
                 btn.disabled = false;
@@ -105,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
             infoTextDiv.innerHTML = `
                 <h3>Rastreamento Rodoviário</h3>
                 <span id="time-badge" class="status-badge">CONECTANDO...</span>
-                <p><strong>Origem:</strong> Promissão - SP</p>
+                <p><strong>Origem:</strong> Montes Claros - MG</p>
                 <p><strong>Destino:</strong> ${rotaAtual.destinoNome}</p>
                 <p style="font-size: 11px; color: #666;">${rotaAtual.destinoDesc}</p>
             `;
@@ -129,14 +133,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function iniciarMapa() {
         if (map) return; 
 
-        map = L.map('map', { zoomControl: false }).setView(fullRoute[0], 6);
+        map = L.map('map', { zoomControl: false }).setView(fullRoute[0], 5);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; CartoDB', maxZoom: 18
         }).addTo(map);
 
         polyline = L.polyline(fullRoute, {
-            color: '#2c3e50', weight: 5, opacity: 0.6, dashArray: '10, 10', lineJoin: 'round'
+            color: '#2563eb', weight: 5, opacity: 0.7, dashArray: '10, 10', lineJoin: 'round'
         }).addTo(map);
 
         const truckIcon = L.divIcon({
@@ -230,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const rotaRestante = [posicaoAtual, ...fullRoute.slice(indexAtual + 1)];
 
         polyline = L.polyline(rotaRestante, {
-            color: '#2c3e50', weight: 5, opacity: 0.6, dashArray: '10, 10', lineJoin: 'round'
+            color: '#2563eb', weight: 5, opacity: 0.7, dashArray: '10, 10', lineJoin: 'round'
         }).addTo(map);
     }
 });
