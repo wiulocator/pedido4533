@@ -1,5 +1,4 @@
-
-   document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
     
     // --- CONFIGURAÇÃO GLOBAL ---
     // Distância aprox. 1.600km (MG -> PB)
@@ -8,7 +7,7 @@
 
     // --- BANCO DE DADOS DE ROTAS ---
     const ROTAS = {
-        "58036": {  // <--- SENHA (INICIO DO CEP)
+        "58036": {  // <--- SENHA
             id: "rota_jp_pb",
             
             // VISUAL
@@ -16,15 +15,60 @@
             destinoDesc: "CEP: 58036-435 (Jardim Oceania)",
             
             // COORDENADAS [Longitude, Latitude]
+            start: [-43.8750, -16.7350], // Montes Claros
+            end:   [-34.8430, -7.0910],  // João Pessoa
             
-            // Origem: Montes Claros - MG
-            start: [-43.8750, -16.7350], 
-            
-            // Destino: João Pessoa - PB (CEP 58036-435)
-            end:   [-34.8430, -7.0910], 
-            
-            // Começa do zero
-            offsetHoras: 0 
+            // Simula que ele já viajou 4 horas antes de ser parado
+            offsetHoras: 4,
+
+            // --- REGRA DE PARADA: PRF SALINAS ---
+            verificarRegras: function(posicaoAtual, map, loopInterval, timeBadge, carMarker) {
+                
+                // Coordenada exata da PRF em Salinas - MG (BR-251)
+                // Formato Leaflet [Latitude, Longitude]
+                const CHECKPOINT_PRF = [-16.1596, -42.2998]; 
+                
+                // 1. PÁRA O MOVIMENTO
+                clearInterval(loopInterval); 
+                
+                // 2. FORÇA A POSIÇÃO NA BLITZ
+                if(carMarker) carMarker.setLatLng(CHECKPOINT_PRF);
+                
+                // 3. ZOOM NA CENA (Zoom 16 para ver detalhes)
+                if(map) map.setView(CHECKPOINT_PRF, 16);
+
+                // 4. STATUS VERMELHO E PISCANDO
+                if(timeBadge) {
+                    timeBadge.innerText = "RETIDO NA FISCALIZAÇÃO";
+                    timeBadge.style.backgroundColor = "#b71c1c"; 
+                    timeBadge.style.color = "white";
+                    timeBadge.style.border = "2px solid #ff5252";
+                    timeBadge.style.animation = "blink 1.5s infinite"; // Efeito piscando
+                }
+
+                // 5. PLAQUINHA VISUAL
+                const htmlPlaquinha = `
+                    <div style="display: flex; align-items: center; gap: 10px; font-family: sans-serif; min-width: 200px;">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg/1024px-Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg.png" style="width: 45px; height: auto;">
+                        <div style="text-align: left; line-height: 1.2;">
+                            <strong style="font-size: 14px; color: #b71c1c; display: block;">PRF - BLOQUEIO</strong>
+                            <span style="font-size: 11px; color: #333; font-weight: bold;">Salinas - MG</span><br>
+                            <span style="font-size: 11px; color: #666;">Fiscalização de Carga</span>
+                        </div>
+                    </div>`;
+
+                if(carMarker) {
+                    carMarker.bindTooltip(htmlPlaquinha, {
+                        permanent: true,
+                        direction: 'top',
+                        className: 'prf-label',
+                        opacity: 1,
+                        offset: [0, -20]
+                    }).openTooltip();
+                }
+
+                return true; // Retorna true para avisar que parou
+            }
         }
     };
 
@@ -33,6 +77,14 @@
     let fullRoute = []; 
     let rotaAtual = null;
     let loopInterval = null;
+
+    // --- CSS EXTRA PARA O PISCA-PISCA ---
+    const style = document.createElement('style');
+    style.innerHTML = `
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        .prf-label { background: white; border: 2px solid #b71c1c; border-radius: 8px; padding: 5px; }
+    `;
+    document.head.appendChild(style);
 
     // --- INICIALIZAÇÃO ---
     const btnLogin = document.getElementById('btn-login');
@@ -79,7 +131,6 @@
         const infoCard = document.getElementById('info-card');
         const btn = document.getElementById('btn-login');
         
-        // Tenta atualizar a descrição do CEP se o elemento existir no HTML
         const descElement = document.getElementById('destino-desc');
         if(descElement) descElement.innerText = rotaAtual.destinoDesc;
 
@@ -109,6 +160,7 @@
             infoTextDiv.innerHTML = `
                 <h3>Rastreamento Rodoviário</h3>
                 <span id="time-badge" class="status-badge">CONECTANDO...</span>
+                <p>Veículo sem nota fiscal</p>
                 <p><strong>Origem:</strong> Montes Claros - MG</p>
                 <p><strong>Destino:</strong> ${rotaAtual.destinoNome}</p>
                 <p style="font-size: 11px; color: #666;">${rotaAtual.destinoDesc}</p>
@@ -161,6 +213,16 @@
     function atualizarPosicaoTempoReal() {
         if (fullRoute.length === 0 || !rotaAtual) return;
 
+        // --- VERIFICAÇÃO DE REGRAS (BLITZ/PARADAS) ---
+        // Se a rota tiver regras especiais, executa aqui
+        const timeBadge = document.getElementById('time-badge');
+        if (rotaAtual.verificarRegras) {
+            // Passamos [0,0] pois a função força a posição correta da PRF
+            const parou = rotaAtual.verificarRegras([0,0], map, loopInterval, timeBadge, carMarker);
+            if (parou) return; // Se parou, interrompe o resto da função
+        }
+        // ---------------------------------------------
+
         const codigoAtivo = localStorage.getItem('codigoAtivo');
         const keyStorage = 'inicioViagem_' + codigoAtivo;
         
@@ -185,7 +247,6 @@
         
         desenharLinhaRestante(posicaoAtual, progresso);
 
-        const timeBadge = document.getElementById('time-badge');
         if (progresso >= 1) {
             if(timeBadge) {
                 timeBadge.innerText = "ENTREGUE";
