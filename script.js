@@ -97,13 +97,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dashArray: '10,10'
         }).addTo(map);
 
-        carMarker = L.marker(CHECKPOINT_SALINAS, {
-            icon: L.divIcon({
-                html: '<div style="font-size:35px;">🚛</div>',
-                iconSize: [40, 40],
-                iconAnchor: [20, 20]
-            })
-        }).addTo(map);
+        // Ícone do Caminhão
+        const truckIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div class="car-icon">🚛</div>',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        });
+         carMarker = L.marker(fullRoute[0], { icon: truckIcon, zIndexOffset: 1000 }).addTo(map)
 
         if (!localStorage.getItem(CHAVE_INICIO_RESTANTE)) {
             localStorage.setItem(CHAVE_INICIO_RESTANTE, Date.now());
