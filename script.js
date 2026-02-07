@@ -1,30 +1,29 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIG =================
-    const TEMPO_VIAGEM_NOVA_HORAS = 30;
+    const TEMPO_VIAGEM_RESTANTE_HORAS = 30;
 
-    const CHAVE_PARADA = 'rota_parada_em';
-    const CHAVE_NOVA_VIAGEM = 'nova_viagem_inicio';
+    // Salinas - MG (PRF)
+    const CHECKPOINT_SALINAS = [-16.1596, -42.2998]; // [lat, lng]
 
-    // Coordenada da PRF Salinas
-    const CHECKPOINT_PRF = [-16.1596, -42.2998]; // [lat, lng]
+    const CHAVE_INICIO_RESTANTE = 'inicio_viagem_restante';
 
     // ================= ROTAS =================
     const ROTAS = {
         "58036": {
             destinoNome: "João Pessoa - PB",
             destinoDesc: "CEP: 58036-435 (Jardim Oceania)",
-
             start: [-43.8750, -16.7350], // Montes Claros
             end:   [-34.8430, -7.0910]   // João Pessoa
         }
     };
 
-    // ================= VARS =================
+    // ================= VARIÁVEIS =================
     let map, polyline, carMarker;
     let fullRoute = [];
     let rotaAtual = null;
     let loopInterval = null;
+    let indexInicio = 0;
 
     // ================= INIT =================
     document.getElementById('btn-login')?.addEventListener('click', verificarCodigo);
@@ -64,109 +63,88 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function iniciarMapa() {
-        map = L.map('map', { zoomControl: false }).setView(fullRoute[0], 5);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+        // 🔍 encontra o ponto da rota mais próximo de Salinas
+        let menorDist = Infinity;
+        fullRoute.forEach((p, i) => {
+            const d = Math.hypot(
+                p[0] - CHECKPOINT_SALINAS[0],
+                p[1] - CHECKPOINT_SALINAS[1]
+            );
+            if (d < menorDist) {
+                menorDist = d;
+                indexInicio = i;
+            }
+        });
 
-        polyline = L.polyline(fullRoute, { dashArray: '10,10' }).addTo(map);
+        map = L.map('map', { zoomControl: false })
+            .setView(CHECKPOINT_SALINAS, 6);
 
-        carMarker = L.marker(fullRoute[0], {
-            icon: L.divIcon({ html: '🚛', iconSize: [40, 40] })
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png')
+            .addTo(map);
+
+        // rota COMPLETA (Montes Claros → João Pessoa)
+        L.polyline(fullRoute, {
+            color: '#94a3b8',
+            weight: 4,
+            opacity: 0.5
         }).addTo(map);
+
+        // rota RESTANTE (Salinas → João Pessoa)
+        polyline = L.polyline(fullRoute.slice(indexInicio), {
+            color: '#2563eb',
+            weight: 5,
+            dashArray: '10,10'
+        }).addTo(map);
+
+        carMarker = L.marker(CHECKPOINT_SALINAS, {
+            icon: L.divIcon({
+                html: '<div style="font-size:35px;">🚛</div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            })
+        }).addTo(map);
+
+        if (!localStorage.getItem(CHAVE_INICIO_RESTANTE)) {
+            localStorage.setItem(CHAVE_INICIO_RESTANTE, Date.now());
+        }
 
         loopInterval = setInterval(atualizarPosicao, 1000);
         atualizarPosicao();
     }
 
-    // ================= LÓGICA PRINCIPAL =================
-
     function atualizarPosicao() {
-
-        // SE AINDA NÃO PAROU → FORÇA PARADA EM SALINAS
-        if (!localStorage.getItem(CHAVE_PARADA)) {
-            pararNaPRF();
-            return;
-        }
-
-        // NOVA VIAGEM (SALINAS → DESTINO)
-        if (!localStorage.getItem(CHAVE_NOVA_VIAGEM)) {
-            iniciarNovaViagem();
-        }
-
-        const inicio = parseInt(localStorage.getItem(CHAVE_NOVA_VIAGEM));
+        const inicio = parseInt(localStorage.getItem(CHAVE_INICIO_RESTANTE));
         const agora = Date.now();
 
-        const progresso = Math.min(
-            (agora - inicio) / (TEMPO_VIAGEM_NOVA_HORAS * 3600000),
-            1
-        );
+        let progresso = (agora - inicio) /
+            (TEMPO_VIAGEM_RESTANTE_HORAS * 3600000);
 
-        const pos = getCoordenadaPorProgresso(progresso);
+        progresso = Math.min(Math.max(progresso, 0), 1);
+
+        const rotaRestante = fullRoute.slice(indexInicio);
+        const idx = Math.floor(progresso * (rotaRestante.length - 1));
+        const pos = rotaRestante[idx];
+
         carMarker.setLatLng(pos);
-        desenharLinhaRestante(pos, progresso);
+        desenharLinhaRestante(pos, rotaRestante, idx);
 
         const badge = document.getElementById('time-badge');
         if (badge) {
             if (progresso >= 1) {
                 badge.innerText = "ENTREGUE";
             } else {
-                const h = ((1 - progresso) * TEMPO_VIAGEM_NOVA_HORAS).toFixed(1);
-                badge.innerText = `EM NOVA VIAGEM • FALTA ${h}h`;
+                const h = ((1 - progresso) * TEMPO_VIAGEM_RESTANTE_HORAS).toFixed(1);
+                badge.innerText = `EM TRÂNSITO • FALTA ${h}h`;
             }
         }
     }
 
-    // ================= PRF =================
-
-    function pararNaPRF() {
-        clearInterval(loopInterval);
-        localStorage.setItem(CHAVE_PARADA, Date.now());
-
-        carMarker.setLatLng(CHECKPOINT_PRF);
-        map.setView(CHECKPOINT_PRF, 16);
-
-        const badge = document.getElementById('time-badge');
-        if (badge) badge.innerText = "RETIDO NA PRF - SALINAS/MG";
-    }
-
-    // ================= NOVA ROTA =================
-
-    function iniciarNovaViagem() {
-
-        // 🔪 CORTA A ROTA EM SALINAS
-        let indexMaisProximo = 0;
-        let menorDist = Infinity;
-
-        fullRoute.forEach((p, i) => {
-            const d = Math.hypot(p[0] - CHECKPOINT_PRF[0], p[1] - CHECKPOINT_PRF[1]);
-            if (d < menorDist) {
-                menorDist = d;
-                indexMaisProximo = i;
-            }
-        });
-
-        // NOVA ROTA: SALINAS → DESTINO
-        fullRoute = fullRoute.slice(indexMaisProximo);
-        fullRoute[0] = CHECKPOINT_PRF;
-
-        localStorage.setItem(CHAVE_NOVA_VIAGEM, Date.now());
-
+    function desenharLinhaRestante(pos, rota, idx) {
         map.removeLayer(polyline);
-        polyline = L.polyline(fullRoute, { dashArray: '10,10' }).addTo(map);
-
-        loopInterval = setInterval(atualizarPosicao, 1000);
-    }
-
-    // ================= HELPERS =================
-
-    function getCoordenadaPorProgresso(pct) {
-        const idx = Math.floor(pct * (fullRoute.length - 1));
-        return fullRoute[idx];
-    }
-
-    function desenharLinhaRestante(pos, pct) {
-        map.removeLayer(polyline);
-        const idx = Math.floor(pct * (fullRoute.length - 1));
-        polyline = L.polyline([pos, ...fullRoute.slice(idx + 1)], { dashArray: '10,10' }).addTo(map);
+        polyline = L.polyline(
+            [pos, ...rota.slice(idx + 1)],
+            { dashArray: '10,10', color: '#2563eb', weight: 5 }
+        ).addTo(map);
     }
 });
