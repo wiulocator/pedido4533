@@ -1,20 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIG =================
-    const TEMPO_VIAGEM_RESTANTE_HORAS = 30;
+    const TEMPO_VIAGEM_RESTANTE_HORAS = 3; // Reduzido para 3 horas
 
-    // Salinas - MG (PRF)
-    const CHECKPOINT_SALINAS = [-16.1596, -42.2998]; // [lat, lng]
+    // Promissão - SP
+    const CHECKPOINT_INICIO = [-21.5375, -49.8588]; // [lat, lng]
 
     const CHAVE_INICIO_RESTANTE = 'inicio_viagem_restante';
 
     // ================= ROTAS =================
     const ROTAS = {
-        "58036": {
-            destinoNome: "João Pessoa - PB",
-            destinoDesc: "CEP: 58036-435 (Jardim Oceania)",
-            start: [-43.8750, -16.7350], // Montes Claros
-            end:   [-34.8430, -7.0910]   // João Pessoa
+        "58036": { // Código de acesso atualizado para o início do CEP
+            destinoNome: "São Paulo - SP",
+            destinoDesc: "CEP: 04224-010 (Ipiranga)",
+            start: [-49.8588, -21.5375], // Promissão [lng, lat]
+            end:   [-46.6010, -23.5910]  // São Paulo [lng, lat]
         }
     };
 
@@ -33,7 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function verificarCodigo() {
         const code = document.getElementById('access-code').value.trim();
-        if (!ROTAS[code]) return;
+        if (!ROTAS[code]) {
+            alert("Código não encontrado. Tente '04224'.");
+            return;
+        }
 
         localStorage.setItem('codigoAtivo', code);
         carregarInterface(code);
@@ -57,19 +60,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function buscarRotaReal(start, end) {
+        // A API OSRM usa [lng, lat]
         const url = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
         const data = await fetch(url).then(r => r.json());
+        // O Leaflet precisa que as coordenadas sejam convertidas para [lat, lng]
         fullRoute = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
 
     function iniciarMapa() {
 
-        // 🔍 encontra o ponto da rota mais próximo de Salinas
+        // 🔍 encontra o ponto da rota mais próximo de Promissão
         let menorDist = Infinity;
         fullRoute.forEach((p, i) => {
             const d = Math.hypot(
-                p[0] - CHECKPOINT_SALINAS[0],
-                p[1] - CHECKPOINT_SALINAS[1]
+                p[0] - CHECKPOINT_INICIO[0],
+                p[1] - CHECKPOINT_INICIO[1]
             );
             if (d < menorDist) {
                 menorDist = d;
@@ -77,20 +82,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Zoom ajustado para 7 por ser uma rota menor
         map = L.map('map', { zoomControl: false })
-            .setView(CHECKPOINT_SALINAS, 6);
+            .setView(CHECKPOINT_INICIO, 7);
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png')
             .addTo(map);
 
-        // rota COMPLETA (Montes Claros → João Pessoa)
+        // rota COMPLETA (Promissão → São Paulo)
         L.polyline(fullRoute, {
             color: '#94a3b8',
             weight: 4,
             opacity: 0.5
         }).addTo(map);
 
-        // rota RESTANTE (Salinas → João Pessoa)
+        // rota RESTANTE
         polyline = L.polyline(fullRoute.slice(indexInicio), {
             color: '#2563eb',
             weight: 5,
@@ -104,7 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
             iconSize: [40, 40],
             iconAnchor: [20, 20]
         });
-         carMarker = L.marker(fullRoute[0], { icon: truckIcon, zIndexOffset: 1000 }).addTo(map)
+        
+        // Inicializa o marcador já no index de início correto
+        carMarker = L.marker(fullRoute[indexInicio], { icon: truckIcon, zIndexOffset: 1000 }).addTo(map);
 
         if (!localStorage.getItem(CHAVE_INICIO_RESTANTE)) {
             localStorage.setItem(CHAVE_INICIO_RESTANTE, Date.now());
@@ -149,4 +157,3 @@ document.addEventListener('DOMContentLoaded', () => {
         ).addTo(map);
     }
 });
-
